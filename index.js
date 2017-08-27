@@ -3,6 +3,31 @@ const app = express();
 const path = require('path');
 const bodyParser = require('body-parser');
 const http = require('http');
+const Sequelize = require('sequelize');
+const sequelize = new Sequelize(process.env.DATABASE_URL, {
+  dialect: 'postgres',
+  dialectOptions: {
+    ssl: true
+  },
+  logging: true
+});
+
+const User = require('./models/user')(sequelize);
+
+const passport = require('passport');
+require('./config/passport')(passport, User);
+app.use(passport.initialize());
+
+
+sequelize
+  .sync()
+  .then(() => {
+    console.log('Connection has been established successfully.');
+    console.log(User, User.findById("1"));
+  })
+  .catch(err => {
+    console.error('Unable to connect to the database:', err);
+  });
 
 const db = {
     index: 3,
@@ -121,7 +146,7 @@ app.post('/push', function(request, response) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": "key=AAAAaQlRBRw:APA91bGGjDxZgXHbGCfnavayqBpSRgprHXxv2w789QCaG4sxQhRgYpdwSR-InY4CFRW-Zvg-aI3uPOeDmiL4SIWcHx14Xl-h4w94f7h4tQEZpW_3GE-o1dv6ORvL1O7OwJbndj21pXqQ"
+        "Authorization": "key=${process.env.FCM}"
       }
     };
     const req = http.request(options, (res) => {
@@ -161,6 +186,57 @@ app.post('/push', function(request, response) {
     response.send("Subscribed::"+registration);
 });
 
+app.get('/api/amiloggedin', function (req, res, next) {
+    passport.authenticate('basic', function (err, user, info) {
+        console.log("### err", err);
+        console.log("### user", user);
+        console.log("### info", info);
+
+        if (!user) {
+            res.send({ 'error': "no" });
+        } else {
+            res.send({ 'success': user.email });
+        }
+    })(req, res, next)
+});
+
+// app.post('/api/login', function (req, res, next) {
+//     passport.authenticate('basic', function (err, user, info) {
+//         // console.log("### req", req);
+//         // console.log("### res", res);
+//         console.log("### err", err);
+//         console.log("### user", user);
+//         console.log("### info", info);
+
+//         if (!user) {
+//             res.send({ 'error': info });
+//         } else {
+//             res.send({ 'user': user });
+//         }
+//     })(req, res, next)
+// });
+
+// process the signup form
+app.post('/api/signup', passport.authenticate('local-signup'), function (req, res) {
+    console.log(req,res);
+});
+
+app.post('/api/logout', function (req, res) {
+    req.logout();
+    res.redirect('/login');
+});
+
 app.listen(app.get('port'), function() {
   console.log('### Node app is running on port', app.get('port'));
 });
+
+// route middleware to make sure a user is logged in
+function isLoggedIn(req, res, next) {
+
+    // if user is authenticated in the session, carry on
+    if (req.isAuthenticated())
+        return next();
+
+    // if they aren't redirect them to the home page
+    res.redirect('/login');
+}
