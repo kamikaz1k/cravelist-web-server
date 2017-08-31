@@ -43,12 +43,17 @@ const passport = require('passport');
 require('./config/passport')(passport, User, Client, Token);
 app.use(passport.initialize());
 
+var clientController = require('./controllers/client')(Client);
 var oauth2Controller = require('./controllers/oauth2')(Client, Code, Token);
 const isAuthenticated = passport.authenticate(['basic', 'bearer'], { session : false });
 const isClientAuthenticated = passport.authenticate('client-basic', { session : false });
 const isBearerAuthenticated = passport.authenticate('bearer', { session: false });
 
 var router = express.Router();
+
+router.route('/clients')
+  .post(isAuthenticated, clientController.postClients)
+  .get(isAuthenticated, clientController.getClients);
 
 // Create endpoint handlers for oauth2 authorize
 router.route('/oauth2/authorize')
@@ -122,38 +127,6 @@ app.set('port',3000);// (process.env.PORT || 3000));
 //   // response.send();
 //   // response.sendFile(path.join(__dirname + '/app/index.html'));
 // });
-
-app.post('/api/clients', isClientAuthenticated, function(req, res) {
-  // Create a new instance of the Client model
-  var client = {};
-
-  // Set the client properties that came from the POST data
-  client.name = req.body.name;
-  client.id = req.body.id;
-  client.secret = req.body.secret;
-  client.userId = req.user._id;
-
-  // Save the client and check for errors
-    Client.create(client).then((newClient) => {
-        if (err)
-            res.send(err);
-
-        res.json({ message: 'Client added to the locker!', data: client });
-    });
-});
-
-// Create endpoint /api/clients for GET
-app.get('/api/clients', isClientAuthenticated, function(req, res) {
-  // Use the Client model to find all clients
-    Client.findAll({
-        where: { userId: req.user._id }
-    }).then(function(err, clients) {
-        if (err)
-            res.send(err);
-
-        res.json(clients);
-  });
-});
 
 app.get('/', (req, res) => { res.send("Welcome to CraveList Web Server") });
 
