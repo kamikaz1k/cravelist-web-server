@@ -1,6 +1,7 @@
 // load all the things we need
 var LocalStrategy = require('passport-local').Strategy;
 var BasicStrategy = require('passport-http').BasicStrategy;
+var BearerStrategy = require('passport-http-bearer').Strategy
 // var FacebookStrategy = require('passport-facebook').Strategy;
 // var TwitterStrategy = require('passport-twitter').Strategy;
 // var GoogleStrategy = require('passport-google-oauth20').Strategy;
@@ -10,7 +11,7 @@ var BasicStrategy = require('passport-http').BasicStrategy;
 var configAuth = require('./auth');
 
 // expose this function to our app using module.exports
-module.exports = function (passport, User) {
+module.exports = function (passport, User, Client, Token) {
 
     // =========================================================================
     // passport session setup ==================================================
@@ -97,7 +98,7 @@ module.exports = function (passport, User) {
         // find a user whose email is the same as the forms email
         // we are checking to see if the user trying to login already exists
         User.findOne({ 'email' :  email }).then(function (user) {
-            console.log(user, user.get({ plain: true }));
+            console.log(user.get({ plain: true }));
             // if no user is found, return the message
             if (!user) {
                 console.log("No user found");
@@ -122,11 +123,11 @@ module.exports = function (passport, User) {
 
     passport.use(new BasicStrategy(
       function (email, password, done) {
-        console.log("### email and pass", email, password);
+        console.log("### 'basic' authentication", email, password);
         // find a user whose email is the same as the forms email
         // we are checking to see if the user trying to login already exists
         User.findOne({ 'email' :  email }).then(function (user) {
-            console.log(user, user.get({ plain: true }));
+            console.log("User obj: ", user.get({ plain: true }));
             // if no user is found, return the message
             if (!user) {
                 console.log("No user found");
@@ -140,6 +141,7 @@ module.exports = function (passport, User) {
 
             console.log("its done then...");
             // all is well, return successful user
+
             return done(null, user);
 
         }).catch(function(err) {
@@ -148,6 +150,41 @@ module.exports = function (passport, User) {
         });
       }
     ));
+
+    passport.use('client-basic', new BasicStrategy(
+      function(username, password, callback) {
+        console.log("### 'client-basic' Authorizing BasicStrategy ", username, password);
+
+        Client.findById(username).then(function (client) {
+            console.log("### Client found: ", client.get({ plain: true }));
+            // No client found with that id or bad password
+            if (!client || client.secret !== password) { 
+                return callback(null, false);
+            }
+            // Success
+            return callback(null, client);
+        }).catch(callback);
+      }
+    ));
+
+    passport.use(new BearerStrategy(
+      function(accessToken, callback) {
+        console.log("### Authorizing BearerStrategy ", accessToken);
+        Token.findOne({ where: { value: accessToken } }).then(function (token) {
+          // No token found
+          if (!token) { return callback(null, false); }
+
+          User.findById(token.userId).then(function (user) {
+            // No user found
+            if (!user) { return callback(null, false); }
+
+            // Simple example with no scope
+            callback(null, user, { scope: '*' });
+          }).catch(callback);
+        }).catch(callback);
+      }
+    ));
+
     /*
     // =========================================================================
     // FACEBOOK ================================================================

@@ -1,10 +1,13 @@
 const express = require('express');
+const session = require('express-session');
 const app = express();
 const path = require('path');
 const bodyParser = require('body-parser');
 const http = require('http');
+const ejs = require('ejs');
 const Sequelize = require('sequelize');
-const sequelize = new Sequelize(process.env.DATABASE_URL, {
+const oauth2orize = require('oauth2orize');
+const sequelize = new Sequelize(DB, {
   dialect: 'postgres',
   dialectOptions: {
     ssl: true
@@ -12,18 +15,61 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
   logging: true
 });
 
+function Log() {
+    console.log("### DEBUG \n\n", arguments, "\n\n### DEBUG");
+}
+
+app.set('view engine', 'ejs');
+
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({
+  extended: true
+}));
+
+// Use express session support since OAuth2orize requires it
+app.use(session({
+  secret: 'Super Secret Session Key',
+  saveUninitialized: true,
+  resave: true
+}));
+
 const User = require('./models/user')(sequelize);
+const Food = require('./models/food')(sequelize, User);
+const Client = require('./models/client')(sequelize);
+const Token = require('./models/token')(sequelize);
+const Code = require('./models/code')(sequelize);
 
 const passport = require('passport');
-require('./config/passport')(passport, User);
+require('./config/passport')(passport, User, Client, Token);
 app.use(passport.initialize());
 
+var oauth2Controller = require('./controllers/oauth2')(Client, Code, Token);
+const isAuthenticated = passport.authenticate(['basic', 'bearer'], { session : false });
+const isClientAuthenticated = passport.authenticate('client-basic', { session : false });
+const isBearerAuthenticated = passport.authenticate('bearer', { session: false });
+
+var router = express.Router();
+
+// Create endpoint handlers for oauth2 authorize
+router.route('/oauth2/authorize')
+  .get(isAuthenticated, oauth2Controller.authorization)
+  .post(isAuthenticated, oauth2Controller.decision);
+
+// Create endpoint handlers for oauth2 token
+router.route('/oauth2/token')
+  .post(isClientAuthenticated, oauth2Controller.token);
+
+app.use('/api', router);
 
 sequelize
   .sync()
+  // .authenticate()
   .then(() => {
     console.log('Connection has been established successfully.');
-    console.log(User, User.findById("1"));
+    // console.log(User, User.findById("1"));
+    app.listen(app.get('port'), function() {
+      console.log('### Node app is running on port', app.get('port'));
+    });
   })
   .catch(err => {
     console.error('Unable to connect to the database:', err);
@@ -70,18 +116,48 @@ function FoodItem(options) {
     };
 }
 
-app.set('port', (process.env.PORT || 5000));
+app.set('port',3000);// (process.env.PORT || 3000));
 
 // app.get('/', function(request, response) {
 //   // response.send();
 //   // response.sendFile(path.join(__dirname + '/app/index.html'));
 // });
 
-app.use(bodyParser.json());
+app.post('/api/clients', isClientAuthenticated, function(req, res) {
+  // Create a new instance of the Client model
+  var client = {};
+
+  // Set the client properties that came from the POST data
+  client.name = req.body.name;
+  client.id = req.body.id;
+  client.secret = req.body.secret;
+  client.userId = req.user._id;
+
+  // Save the client and check for errors
+    Client.create(client).then((newClient) => {
+        if (err)
+            res.send(err);
+
+        res.json({ message: 'Client added to the locker!', data: client });
+    });
+});
+
+// Create endpoint /api/clients for GET
+app.get('/api/clients', isClientAuthenticated, function(req, res) {
+  // Use the Client model to find all clients
+    Client.findAll({
+        where: { userId: req.user._id }
+    }).then(function(err, clients) {
+        if (err)
+            res.send(err);
+
+        res.json(clients);
+  });
+});
 
 app.get('/', (req, res) => { res.send("Welcome to CraveList Web Server") });
 
-app.get('/api/foodItems/:foodId', function(request, response) {
+app.get('/api/foodItems/:foodId', isAuthenticated, function(request, response) {
     let foodId = request.params.foodId;
 
     if (foodId) {
@@ -99,7 +175,7 @@ app.get('/api/foodItems/:foodId', function(request, response) {
     }
 });
 
-app.put('/api/foodItems/:foodId', function(request, response) {
+app.put('/api/foodItems/:foodId', isAuthenticated, function(request, response) {
     let foodItem = request.body.foodItem, 
         foodId = request.params.foodId;
 
@@ -119,7 +195,7 @@ app.put('/api/foodItems/:foodId', function(request, response) {
     }
 });
 
-app.post('/api/foodItems', function(req, res) {
+app.post('/api/foodItems', isAuthenticated, function(req, res) {
     console.log("data: ", req.body);
     let foodEntry = FoodItem(req.body.foodItem);
     foodEntry.id = ++db.index;
@@ -127,7 +203,7 @@ app.post('/api/foodItems', function(req, res) {
     res.send({ foodItems: foodEntry });
 });
 
-app.get('/api/foodItems', function(request, response) {
+app.get('/api/foodItems', isAuthenticated, function(request, response) {
     response.set({
         "Content-Type": "application/json"
     })
@@ -226,10 +302,6 @@ app.post('/api/logout', function (req, res) {
     res.redirect('/login');
 });
 
-app.listen(app.get('port'), function() {
-  console.log('### Node app is running on port', app.get('port'));
-});
-
 // route middleware to make sure a user is logged in
 function isLoggedIn(req, res, next) {
 
@@ -240,3 +312,16 @@ function isLoggedIn(req, res, next) {
     // if they aren't redirect them to the home page
     res.redirect('/login');
 }
+
+/*
+function isAuthenticated(req, res, next) {
+    Log("### isAuthenticated");
+    passport.authenticate('basic', function (err, user, info) {
+        if (user) {
+            req.user = user;
+            return next();
+        }
+
+        res.status(401).send({ 'error': "Authentication failed" });
+    })(req, res, next);
+}*/
