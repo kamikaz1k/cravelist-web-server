@@ -9,6 +9,8 @@ var BearerStrategy = require('passport-http-bearer').Strategy
 // load up the user model
 // load the auth variables
 var configAuth = require('./auth');
+const jwt = require('jsonwebtoken');
+const JWT_SECRET = 'a_very_big_sekret';
 
 // expose this function to our app using module.exports
 module.exports = function (passport, User, Client, Token) {
@@ -89,7 +91,7 @@ module.exports = function (passport, User, Client, Token) {
 
     passport.use('local-login', new LocalStrategy({
         // by default, local strategy uses username and password, we will override with email
-        usernameField : 'email',
+        usernameField : 'username',
         passwordField : 'password',
         passReqToCallback : true // allows us to pass back the entire request to the callback
     },
@@ -120,6 +122,18 @@ module.exports = function (passport, User, Client, Token) {
         });
 
     }));
+
+    passport.use('jwt-bearer', new BearerStrategy(
+      function(accessToken, callback) {
+        jwt.verify(accessToken, JWT_SECRET, function (err, decoded) {
+          if (err) {
+            callback(err, false);
+          } else {
+            callback(null, decoded, { scope: '*' });
+          }
+        });
+      }
+    ));
 
     passport.use(new BasicStrategy(
       function (email, password, done) {

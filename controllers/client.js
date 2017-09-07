@@ -7,7 +7,7 @@ module.exports = function(Client) {
         name: req.body.name,
         id: req.body.id,
         secret: req.body.secret,
-        userId: req.user._id
+        userId: req.user.email
       }
 
       // Save the client and check for errors

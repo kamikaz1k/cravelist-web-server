@@ -7,10 +7,13 @@ const http = require('http');
 const ejs = require('ejs');
 const Sequelize = require('sequelize');
 const oauth2orize = require('oauth2orize');
+const jwt = require('jsonwebtoken');
+const JWT_SECRET = 'a_very_big_sekret';
+const DB = 'postgres://cravelistserver:123poiasd098@localhost:5432/cravelistdev';
 const sequelize = new Sequelize(DB, {
   dialect: 'postgres',
   dialectOptions: {
-    ssl: true
+    ssl: false
   },
   logging: true
 });
@@ -45,7 +48,7 @@ app.use(passport.initialize());
 
 var clientController = require('./controllers/client')(Client);
 var oauth2Controller = require('./controllers/oauth2')(Client, Code, Token);
-const isAuthenticated = passport.authenticate(['basic', 'bearer'], { session : false });
+const isAuthenticated = passport.authenticate(['local-login','jwt-bearer'], { session : false });
 const isClientAuthenticated = passport.authenticate('client-basic', { session : false });
 const isBearerAuthenticated = passport.authenticate('bearer', { session: false });
 
@@ -65,6 +68,16 @@ router.route('/oauth2/token')
   .post(isClientAuthenticated, oauth2Controller.token);
 
 app.use('/api', router);
+
+app.post('/api/token', isAuthenticated, (req, res) => {
+  // If it has a user -- create and send token
+  if (req.user) {
+    var token = jwt.sign({ username: req.user.username /*, exp: Date.now() + */ }, JWT_SECRET);
+    res.status(200).send({ "access_token": token });
+  } else {
+    res.status(401).send({ "error": "Unauthorized" });
+  }
+});
 
 sequelize
   .sync()
@@ -121,7 +134,7 @@ function FoodItem(options) {
     };
 }
 
-app.set('port',3000);// (process.env.PORT || 3000));
+app.set('port',5000);// (process.env.PORT || 3000));
 
 // app.get('/', function(request, response) {
 //   // response.send();
