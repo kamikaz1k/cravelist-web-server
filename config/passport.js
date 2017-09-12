@@ -125,10 +125,12 @@ module.exports = function (passport, User, Client, Token) {
 
     passport.use('jwt-bearer', new BearerStrategy(
       function(accessToken, callback) {
-        jwt.verify(accessToken, JWT_SECRET, function (err, decoded) {
+        console.log("### 'jwt-bearer' authentication", accessToken);
+        jwt.verify(accessToken, JWT_SECRET, {ignoreExpiration:false}, function (err, decoded) {
           if (err) {
             callback(err, false);
           } else {
+            console.log("decoded", decoded);
             callback(null, decoded, { scope: '*' });
           }
         });
@@ -162,40 +164,6 @@ module.exports = function (passport, User, Client, Token) {
             console.log("you gone dun goofed");
             return done(err, false, 'Unknown error...');
         });
-      }
-    ));
-
-    passport.use('client-basic', new BasicStrategy(
-      function(username, password, callback) {
-        console.log("### 'client-basic' Authorizing BasicStrategy ", username, password);
-
-        Client.findById(username).then(function (client) {
-            console.log("### Client found: ", client.get({ plain: true }));
-            // No client found with that id or bad password
-            if (!client || client.secret !== password) { 
-                return callback(null, false);
-            }
-            // Success
-            return callback(null, client);
-        }).catch(callback);
-      }
-    ));
-
-    passport.use(new BearerStrategy(
-      function(accessToken, callback) {
-        console.log("### Authorizing BearerStrategy ", accessToken);
-        Token.findOne({ where: { value: accessToken } }).then(function (token) {
-          // No token found
-          if (!token) { return callback(null, false); }
-
-          User.findById(token.userId).then(function (user) {
-            // No user found
-            if (!user) { return callback(null, false); }
-
-            // Simple example with no scope
-            callback(null, user, { scope: '*' });
-          }).catch(callback);
-        }).catch(callback);
       }
     ));
 

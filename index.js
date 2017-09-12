@@ -46,34 +46,16 @@ const passport = require('passport');
 require('./config/passport')(passport, User, Client, Token);
 app.use(passport.initialize());
 
-var clientController = require('./controllers/client')(Client);
-var oauth2Controller = require('./controllers/oauth2')(Client, Code, Token);
 const isAuthenticated = passport.authenticate(['local-login','jwt-bearer'], { session : false });
-const isClientAuthenticated = passport.authenticate('client-basic', { session : false });
-const isBearerAuthenticated = passport.authenticate('bearer', { session: false });
 
 var router = express.Router();
-
-router.route('/clients')
-  .post(isAuthenticated, clientController.postClients)
-  .get(isAuthenticated, clientController.getClients);
-
-// Create endpoint handlers for oauth2 authorize
-router.route('/oauth2/authorize')
-  .get(isAuthenticated, oauth2Controller.authorization)
-  .post(isAuthenticated, oauth2Controller.decision);
-
-// Create endpoint handlers for oauth2 token
-router.route('/oauth2/token')
-  .post(isClientAuthenticated, oauth2Controller.token);
-
-app.use('/api', router);
 
 app.post('/api/token', isAuthenticated, (req, res) => {
   // If it has a user -- create and send token
   if (req.user) {
-    var token = jwt.sign({ username: req.user.username /*, exp: Date.now() + */ }, JWT_SECRET);
-    res.status(200).send({ "access_token": token });
+    var expiresIn = 60 * 60; // 1 hour
+    var token = jwt.sign({ data: req.user.get("email") }, JWT_SECRET, { expiresIn: expiresIn });
+    res.status(200).send({ "access_token": token, "expires_in": expiresIn });
   } else {
     res.status(401).send({ "error": "Unauthorized" });
   }
