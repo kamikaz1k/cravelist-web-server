@@ -87,12 +87,8 @@ const db = {
     ]
 };
 
-app.set('port',5000);// (process.env.PORT || 3000));
+app.set('port', process.env.PORT || 5000);
 
-// app.get('/', function(request, response) {
-//   // response.send();
-//   // response.sendFile(path.join(__dirname + '/app/index.html'));
-// });
 
 app.get('/', (req, res) => { res.send("Welcome to CraveList Web Server") });
 
