@@ -30,8 +30,6 @@ app.use(passport.initialize());
 
 const isAuthenticated = passport.authenticate(['local-login', 'basic','jwt-bearer'], { session : false });
 
-var router = express.Router();
-
 app.post('/api/token', isAuthenticated, (req, res) => {
   // If it has a user -- create and send token
   if (req.user) {
@@ -57,38 +55,8 @@ sequelize
     console.error('Unable to connect to the database:', err);
   });
 
-const db = {
-    index: 3,
-    food: [
-        {
-            id: "1",
-                name: "There's a name",
-                location: "And its location",
-                eaten: false,
-                createdAt: new Date(),
-                modifiedAt: new Date()
-        },
-        {
-            id: "2",
-                name: "TBiryani",
-                location: "And its location",
-                eaten: false,
-                createdAt: new Date(),
-                modifiedAt: new Date()
-        },
-        {
-            id: "3",
-                name: "Thai Rice",
-                location: "And its location",
-                eaten: false,
-                createdAt: new Date(),
-                modifiedAt: new Date()
-        }
-    ]
-};
 
 app.set('port', process.env.PORT || 5000);
-
 
 app.get('/', (req, res) => { res.send("Welcome to CraveList Web Server") });
 
@@ -236,42 +204,10 @@ app.get('/api/amiloggedin', function (req, res, next) {
     })(req, res, next)
 });
 
-// app.post('/api/login', function (req, res, next) {
-//     passport.authenticate('basic', function (err, user, info) {
-//         // console.log("### req", req);
-//         // console.log("### res", res);
-//         console.log("### err", err);
-//         console.log("### user", user);
-//         console.log("### info", info);
-
-//         if (!user) {
-//             res.send({ 'error': info });
-//         } else {
-//             res.send({ 'user': user });
-//         }
-//     })(req, res, next)
-// });
-
 // process the signup form
 app.post('/api/signup', passport.authenticate('local-signup'), function (req, res) {
     console.log(req,res);
 });
-
-app.post('/api/logout', function (req, res) {
-    req.logout();
-    res.redirect('/login');
-});
-
-// route middleware to make sure a user is logged in
-function isLoggedIn(req, res, next) {
-
-    // if user is authenticated in the session, carry on
-    if (req.isAuthenticated())
-        return next();
-
-    // if they aren't redirect them to the home page
-    res.redirect('/login');
-}
 
 /*
 function isAuthenticated(req, res, next) {
