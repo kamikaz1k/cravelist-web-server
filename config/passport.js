@@ -10,7 +10,7 @@ var BearerStrategy = require('passport-http-bearer').Strategy
 // load the auth variables
 var configAuth = require('./auth');
 const jwt = require('jsonwebtoken');
-const JWT_SECRET = 'a_very_big_sekret';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // expose this function to our app using module.exports
 module.exports = function (passport, User) {

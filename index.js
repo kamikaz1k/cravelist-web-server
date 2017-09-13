@@ -7,9 +7,9 @@ const http = require('http');
 const ejs = require('ejs');
 const Sequelize = require('sequelize');
 const jwt = require('jsonwebtoken');
-const JWT_SECRET = 'a_very_big_sekret';
-const DB = 'postgres://cravelistserver:123poiasd098@localhost:5432/cravelistdev';
-const sequelize = new Sequelize(DB, {
+const JWT_SECRET = process.env.JWT_SECRET;
+console.log(JWT_SECRET);
+const sequelize = new Sequelize('postgres://cravelistserver:123poiasd098@localhost:5432/cravelistdev', {
   dialect: 'postgres',
   dialectOptions: {
     ssl: false
@@ -73,7 +73,7 @@ const db = {
                 location: "And its location",
                 eaten: false,
                 createdAt: new Date(),
-                modifiedAt: new Date() 
+                modifiedAt: new Date()
         },
         {
             id: "2",
@@ -81,7 +81,7 @@ const db = {
                 location: "And its location",
                 eaten: false,
                 createdAt: new Date(),
-                modifiedAt: new Date() 
+                modifiedAt: new Date()
         },
         {
             id: "3",
@@ -89,7 +89,7 @@ const db = {
                 location: "And its location",
                 eaten: false,
                 createdAt: new Date(),
-                modifiedAt: new Date() 
+                modifiedAt: new Date()
         }
     ]
 };
@@ -101,7 +101,7 @@ function FoodItem(options) {
         location: options.location,
         eaten: options.eaten,
         createdAt: options.createdAt,
-        modifiedAt: options.modifiedAt 
+        modifiedAt: options.modifiedAt
     };
 }
 
@@ -133,7 +133,7 @@ app.get('/api/foodItems/:foodId', isAuthenticated, function(request, response) {
 });
 
 app.put('/api/foodItems/:foodId', isAuthenticated, function(request, response) {
-    let foodItem = request.body.foodItem, 
+    let foodItem = request.body.foodItem,
         foodId = request.params.foodId;
 
     if (foodItem) {
@@ -168,11 +168,11 @@ app.get('/api/foodItems', isAuthenticated, function(request, response) {
 });
 
 app.post('/push', function(request, response) {
-    
+
     let registration = request.body.registration;
 
     console.log("Subscribed::", request.body, registration);
-    
+
     const options = {
       hostname: "fcm.googleapis.com",
       path: "/fcm/send",
