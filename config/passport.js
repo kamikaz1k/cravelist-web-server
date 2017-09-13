@@ -99,8 +99,8 @@ module.exports = function (passport, User, Client, Token) {
         console.log("### email and pass", email, password);
         // find a user whose email is the same as the forms email
         // we are checking to see if the user trying to login already exists
-        User.findOne({ 'email' :  email }).then(function (user) {
-            console.log(user.get({ plain: true }));
+        User.findOne({ where: { 'email': email } }).then(function (user) {
+
             // if no user is found, return the message
             if (!user) {
                 console.log("No user found");
@@ -124,14 +124,29 @@ module.exports = function (passport, User, Client, Token) {
     }));
 
     passport.use('jwt-bearer', new BearerStrategy(
-      function(accessToken, callback) {
+      function(accessToken, done) {
         console.log("### 'jwt-bearer' authentication", accessToken);
         jwt.verify(accessToken, JWT_SECRET, {ignoreExpiration:false}, function (err, decoded) {
           if (err) {
-            callback(err, false);
+            done(err, false);
           } else {
             console.log("decoded", decoded);
-            callback(null, decoded, { scope: '*' });
+            // done(null, decoded, { scope: '*' });
+            User.findOne({ where: { 'email': email } }).then(function (user) {
+                console.log("User obj: ", user.get({ plain: true }));
+                // TODO with fake token error
+                // if no user is found, return the message
+                if (!user) {
+                    console.log("No user found");
+                    return done(null, false, 'No user found.');
+                }
+
+                return done(null, user);
+
+            }).catch(function(err) {
+            console.log("you gone dun goofed");
+            return done(err, false, 'Unknown error...');
+        });
           }
         });
       }
@@ -142,7 +157,7 @@ module.exports = function (passport, User, Client, Token) {
         console.log("### 'basic' authentication", email, password);
         // find a user whose email is the same as the forms email
         // we are checking to see if the user trying to login already exists
-        User.findOne({ 'email' :  email }).then(function (user) {
+        User.findOne({ where: { 'email': email } }).then(function (user) {
             console.log("User obj: ", user.get({ plain: true }));
             // if no user is found, return the message
             if (!user) {
