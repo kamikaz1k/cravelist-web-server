@@ -87,17 +87,6 @@ const db = {
     ]
 };
 
-function FoodItem(options) {
-    return {
-        id: options.id,
-        name: options.name,
-        location: options.location,
-        eaten: options.eaten,
-        createdAt: options.createdAt,
-        modifiedAt: options.modifiedAt
-    };
-}
-
 app.set('port',5000);// (process.env.PORT || 3000));
 
 // app.get('/', function(request, response) {
@@ -107,42 +96,50 @@ app.set('port',5000);// (process.env.PORT || 3000));
 
 app.get('/', (req, res) => { res.send("Welcome to CraveList Web Server") });
 
-app.get('/api/foodItems/:foodId', isAuthenticated, function(request, response) {
-    let foodId = request.params.foodId;
+app.get('/api/foodItems/:foodId', isAuthenticated, function(req, res) {
+    let foodId = req.params.foodId;
 
-    if (foodId) {
-
-        let query = db.food.find((v) => v.id == foodId);
-
-        if (query) {
-            response.send({ foodItems: query });
-        } else {
-            response.send("no ID provided");
-        }
-
-    } else {
-        response.send("no ID provided");
+    if (!foodId) {
+      return res.send({ "error": "no ID provided" });
     }
+
+    Food.find({ where: { id: foodId }, attributes: { exclude: ['userEmail' ]} }).then(response => {
+      console.log(response);
+      res.send({ foodItems: response });
+    }).catch(err => {
+      console.error(err);
+      res.send({ "error": "something went wrong..."});
+    });
+
 });
 
-app.put('/api/foodItems/:foodId', isAuthenticated, function(request, response) {
-    let foodItem = request.body.foodItem,
-        foodId = request.params.foodId;
+app.put('/api/foodItems/:foodId', isAuthenticated, function(req, res) {
+    let foodItem = req.body.foodItem,
+        foodId = req.params.foodId;
 
-    if (foodItem) {
-
-        let query = db.food.find((v) => v.id == foodId);
-
-        if (query) {
-            Object.assign(query, foodItem);
-            response.send({ foodItems: query });
-        } else {
-            response.send("ID provided unmatched");
-        }
-
-    } else {
-        response.send("no foodItem data provided");
+    if (!foodId) {
+      return res.send({ "error": "no ID provided" });
     }
+
+    Food.find({ where: { id: foodId, userEmail: req.user.get("email") }, attributes: { exclude: ['userEmail' ]} }).then(response => {
+      console.log("### After Query: ", response);
+      // res.send({ foodItems: response });
+      return response.update({
+        name: foodItem.name,
+        location: foodItem.location,
+        eaten: foodItem.eaten,
+        notes: foodItem.notes,
+      });
+    }).then(result => {
+      console.log("result", result, result.get({ plain: true }));
+      result = result.get({ plain: true });
+      delete result.userEmail;
+      res.send({ foodItems: result });
+    })
+    .catch(err => {
+      console.error(err);
+      res.status(500).send({ "error": "something went wrong..."});
+    });
 });
 
 app.post('/api/foodItems', isAuthenticated, function(req, res) {
