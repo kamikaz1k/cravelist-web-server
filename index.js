@@ -8,11 +8,10 @@ const ejs = require('ejs');
 const Sequelize = require('sequelize');
 const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET;
-console.log(JWT_SECRET);
-const sequelize = new Sequelize('postgres://cravelistserver:123poiasd098@localhost:5432/cravelistdev', {
+const sequelize = new Sequelize(process.env.DATABASE_URL, {
   dialect: 'postgres',
   dialectOptions: {
-    ssl: false
+    ssl: true
   },
   logging: true
 });
