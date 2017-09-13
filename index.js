@@ -6,7 +6,6 @@ const bodyParser = require('body-parser');
 const http = require('http');
 const ejs = require('ejs');
 const Sequelize = require('sequelize');
-const oauth2orize = require('oauth2orize');
 const jwt = require('jsonwebtoken');
 const JWT_SECRET = 'a_very_big_sekret';
 const DB = 'postgres://cravelistserver:123poiasd098@localhost:5432/cravelistdev';
@@ -29,24 +28,14 @@ app.use(bodyParser.urlencoded({
   extended: true
 }));
 
-// Use express session support since OAuth2orize requires it
-app.use(session({
-  secret: 'Super Secret Session Key',
-  saveUninitialized: true,
-  resave: true
-}));
-
 const User = require('./models/user')(sequelize);
 const Food = require('./models/food')(sequelize, User);
-const Client = require('./models/client')(sequelize);
-const Token = require('./models/token')(sequelize);
-const Code = require('./models/code')(sequelize);
 
 const passport = require('passport');
-require('./config/passport')(passport, User, Client, Token);
+require('./config/passport')(passport, User);
 app.use(passport.initialize());
 
-const isAuthenticated = passport.authenticate(['local-login','jwt-bearer'], { session : false });
+const isAuthenticated = passport.authenticate(['local-login', 'basic','jwt-bearer'], { session : false });
 
 var router = express.Router();
 

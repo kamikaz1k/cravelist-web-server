@@ -13,7 +13,7 @@ const jwt = require('jsonwebtoken');
 const JWT_SECRET = 'a_very_big_sekret';
 
 // expose this function to our app using module.exports
-module.exports = function (passport, User, Client, Token) {
+module.exports = function (passport, User) {
 
     // =========================================================================
     // passport session setup ==================================================
@@ -132,7 +132,7 @@ module.exports = function (passport, User, Client, Token) {
           } else {
             console.log("decoded", decoded);
             // done(null, decoded, { scope: '*' });
-            User.findOne({ where: { 'email': email } }).then(function (user) {
+            User.findOne({ where: { 'email': decoded.data } }).then(function (user) {
                 console.log("User obj: ", user.get({ plain: true }));
                 // TODO with fake token error
                 // if no user is found, return the message
@@ -152,13 +152,12 @@ module.exports = function (passport, User, Client, Token) {
       }
     ));
 
-    passport.use(new BasicStrategy(
+    passport.use('basic', new BasicStrategy(
       function (email, password, done) {
         console.log("### 'basic' authentication", email, password);
         // find a user whose email is the same as the forms email
         // we are checking to see if the user trying to login already exists
         User.findOne({ where: { 'email': email } }).then(function (user) {
-            console.log("User obj: ", user.get({ plain: true }));
             // if no user is found, return the message
             if (!user) {
                 console.log("No user found");
@@ -170,6 +169,7 @@ module.exports = function (passport, User, Client, Token) {
                 return done(null, false, 'Oops! Wrong password.');
             }
 
+            console.log("User obj: ", user.get({ plain: true }));
             console.log("its done then...");
             // all is well, return successful user
 
