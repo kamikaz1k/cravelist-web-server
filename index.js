@@ -8,13 +8,7 @@ const ejs = require('ejs');
 const Sequelize = require('sequelize');
 const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET;
-const sequelize = new Sequelize(process.env.DATABASE_URL, {
-  dialect: 'postgres',
-  dialectOptions: {
-    ssl: true
-  },
-  logging: true
-});
+const sequelize = require('./config/db.js');
 
 function Log() {
     console.log("### DEBUG \n\n", arguments, "\n\n### DEBUG");
@@ -153,17 +147,31 @@ app.put('/api/foodItems/:foodId', isAuthenticated, function(request, response) {
 
 app.post('/api/foodItems', isAuthenticated, function(req, res) {
     console.log("data: ", req.body);
-    let foodEntry = FoodItem(req.body.foodItem);
-    foodEntry.id = ++db.index;
-    db.food.push(foodEntry);
-    res.send({ foodItems: foodEntry });
+    let foodEntry = req.body.foodItem;
+    Food.create({
+      name: foodEntry.name,
+      location: foodEntry.location,
+      eaten: foodEntry.eaten,
+      notes: foodEntry.notes,
+      userEmail: req.user.get("email")
+    }).then(result => {
+      console.log("result", result, result.get({ plain: true }));
+      result = result.get({ plain: true });
+      delete result.userEmail;
+      res.send({ foodItems: result });
+    }).catch(err => {
+      console.error(err);
+      res.send({ "error": "something went wrong..." });
+    });
 });
 
-app.get('/api/foodItems', isAuthenticated, function(request, response) {
-    response.set({
-        "Content-Type": "application/json"
-    })
-    response.send({ foodItems: db.food });
+app.get('/api/foodItems', isAuthenticated, function(req, res) {
+    Food.findAll({ where: { userEmail: req.user.get("email") } }).then(response => {
+      console.log(response);
+      res.send({ foodItems: response });
+    }).catch(err => {
+      res.send({ "error": "something went wrong..."});
+    });
 });
 
 app.post('/push', function(request, response) {
