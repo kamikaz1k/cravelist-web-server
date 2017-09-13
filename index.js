@@ -1,29 +1,64 @@
 const express = require('express');
+const session = require('express-session');
 const app = express();
 const path = require('path');
 const bodyParser = require('body-parser');
 const http = require('http');
+const ejs = require('ejs');
 const Sequelize = require('sequelize');
-const sequelize = new Sequelize(process.env.DATABASE_URL, {
+const jwt = require('jsonwebtoken');
+const JWT_SECRET = process.env.JWT_SECRET;
+console.log(JWT_SECRET);
+const sequelize = new Sequelize('postgres://cravelistserver:123poiasd098@localhost:5432/cravelistdev', {
   dialect: 'postgres',
   dialectOptions: {
-    ssl: true
+    ssl: false
   },
   logging: true
 });
 
+function Log() {
+    console.log("### DEBUG \n\n", arguments, "\n\n### DEBUG");
+}
+
+app.set('view engine', 'ejs');
+
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({
+  extended: true
+}));
+
 const User = require('./models/user')(sequelize);
+const Food = require('./models/food')(sequelize, User);
 
 const passport = require('passport');
 require('./config/passport')(passport, User);
 app.use(passport.initialize());
 
+const isAuthenticated = passport.authenticate(['local-login', 'basic','jwt-bearer'], { session : false });
+
+var router = express.Router();
+
+app.post('/api/token', isAuthenticated, (req, res) => {
+  // If it has a user -- create and send token
+  if (req.user) {
+    var expiresIn = 60 * 60; // 1 hour
+    var token = jwt.sign({ data: req.user.get("email") }, JWT_SECRET, { expiresIn: expiresIn });
+    res.status(200).send({ "access_token": token, "expires_in": expiresIn });
+  } else {
+    res.status(401).send({ "error": "Unauthorized" });
+  }
+});
 
 sequelize
   .sync()
+  // .authenticate()
   .then(() => {
     console.log('Connection has been established successfully.');
-    console.log(User, User.findById("1"));
+    // console.log(User, User.findById("1"));
+    app.listen(app.get('port'), function() {
+      console.log('### Node app is running on port', app.get('port'));
+    });
   })
   .catch(err => {
     console.error('Unable to connect to the database:', err);
@@ -38,7 +73,7 @@ const db = {
                 location: "And its location",
                 eaten: false,
                 createdAt: new Date(),
-                modifiedAt: new Date() 
+                modifiedAt: new Date()
         },
         {
             id: "2",
@@ -46,7 +81,7 @@ const db = {
                 location: "And its location",
                 eaten: false,
                 createdAt: new Date(),
-                modifiedAt: new Date() 
+                modifiedAt: new Date()
         },
         {
             id: "3",
@@ -54,7 +89,7 @@ const db = {
                 location: "And its location",
                 eaten: false,
                 createdAt: new Date(),
-                modifiedAt: new Date() 
+                modifiedAt: new Date()
         }
     ]
 };
@@ -66,22 +101,20 @@ function FoodItem(options) {
         location: options.location,
         eaten: options.eaten,
         createdAt: options.createdAt,
-        modifiedAt: options.modifiedAt 
+        modifiedAt: options.modifiedAt
     };
 }
 
-app.set('port', (process.env.PORT || 5000));
+app.set('port',5000);// (process.env.PORT || 3000));
 
 // app.get('/', function(request, response) {
 //   // response.send();
 //   // response.sendFile(path.join(__dirname + '/app/index.html'));
 // });
 
-app.use(bodyParser.json());
-
 app.get('/', (req, res) => { res.send("Welcome to CraveList Web Server") });
 
-app.get('/api/foodItems/:foodId', function(request, response) {
+app.get('/api/foodItems/:foodId', isAuthenticated, function(request, response) {
     let foodId = request.params.foodId;
 
     if (foodId) {
@@ -99,8 +132,8 @@ app.get('/api/foodItems/:foodId', function(request, response) {
     }
 });
 
-app.put('/api/foodItems/:foodId', function(request, response) {
-    let foodItem = request.body.foodItem, 
+app.put('/api/foodItems/:foodId', isAuthenticated, function(request, response) {
+    let foodItem = request.body.foodItem,
         foodId = request.params.foodId;
 
     if (foodItem) {
@@ -119,7 +152,7 @@ app.put('/api/foodItems/:foodId', function(request, response) {
     }
 });
 
-app.post('/api/foodItems', function(req, res) {
+app.post('/api/foodItems', isAuthenticated, function(req, res) {
     console.log("data: ", req.body);
     let foodEntry = FoodItem(req.body.foodItem);
     foodEntry.id = ++db.index;
@@ -127,7 +160,7 @@ app.post('/api/foodItems', function(req, res) {
     res.send({ foodItems: foodEntry });
 });
 
-app.get('/api/foodItems', function(request, response) {
+app.get('/api/foodItems', isAuthenticated, function(request, response) {
     response.set({
         "Content-Type": "application/json"
     })
@@ -135,11 +168,11 @@ app.get('/api/foodItems', function(request, response) {
 });
 
 app.post('/push', function(request, response) {
-    
+
     let registration = request.body.registration;
 
     console.log("Subscribed::", request.body, registration);
-    
+
     const options = {
       hostname: "fcm.googleapis.com",
       path: "/fcm/send",
@@ -226,10 +259,6 @@ app.post('/api/logout', function (req, res) {
     res.redirect('/login');
 });
 
-app.listen(app.get('port'), function() {
-  console.log('### Node app is running on port', app.get('port'));
-});
-
 // route middleware to make sure a user is logged in
 function isLoggedIn(req, res, next) {
 
@@ -240,3 +269,16 @@ function isLoggedIn(req, res, next) {
     // if they aren't redirect them to the home page
     res.redirect('/login');
 }
+
+/*
+function isAuthenticated(req, res, next) {
+    Log("### isAuthenticated");
+    passport.authenticate('basic', function (err, user, info) {
+        if (user) {
+            req.user = user;
+            return next();
+        }
+
+        res.status(401).send({ 'error': "Authentication failed" });
+    })(req, res, next);
+}*/

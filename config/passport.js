@@ -1,6 +1,7 @@
 // load all the things we need
 var LocalStrategy = require('passport-local').Strategy;
 var BasicStrategy = require('passport-http').BasicStrategy;
+var BearerStrategy = require('passport-http-bearer').Strategy
 // var FacebookStrategy = require('passport-facebook').Strategy;
 // var TwitterStrategy = require('passport-twitter').Strategy;
 // var GoogleStrategy = require('passport-google-oauth20').Strategy;
@@ -8,6 +9,8 @@ var BasicStrategy = require('passport-http').BasicStrategy;
 // load up the user model
 // load the auth variables
 var configAuth = require('./auth');
+const jwt = require('jsonwebtoken');
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // expose this function to our app using module.exports
 module.exports = function (passport, User) {
@@ -88,7 +91,7 @@ module.exports = function (passport, User) {
 
     passport.use('local-login', new LocalStrategy({
         // by default, local strategy uses username and password, we will override with email
-        usernameField : 'email',
+        usernameField : 'username',
         passwordField : 'password',
         passReqToCallback : true // allows us to pass back the entire request to the callback
     },
@@ -96,8 +99,8 @@ module.exports = function (passport, User) {
         console.log("### email and pass", email, password);
         // find a user whose email is the same as the forms email
         // we are checking to see if the user trying to login already exists
-        User.findOne({ 'email' :  email }).then(function (user) {
-            console.log(user, user.get({ plain: true }));
+        User.findOne({ where: { 'email': email } }).then(function (user) {
+
             // if no user is found, return the message
             if (!user) {
                 console.log("No user found");
@@ -120,13 +123,41 @@ module.exports = function (passport, User) {
 
     }));
 
-    passport.use(new BasicStrategy(
+    passport.use('jwt-bearer', new BearerStrategy(
+      function(accessToken, done) {
+        console.log("### 'jwt-bearer' authentication", accessToken);
+        jwt.verify(accessToken, JWT_SECRET, {ignoreExpiration:false}, function (err, decoded) {
+          if (err) {
+            done(err, false);
+          } else {
+            console.log("decoded", decoded);
+            // done(null, decoded, { scope: '*' });
+            User.findOne({ where: { 'email': decoded.data } }).then(function (user) {
+                console.log("User obj: ", user.get({ plain: true }));
+                // TODO with fake token error
+                // if no user is found, return the message
+                if (!user) {
+                    console.log("No user found");
+                    return done(null, false, 'No user found.');
+                }
+
+                return done(null, user);
+
+            }).catch(function(err) {
+            console.log("you gone dun goofed");
+            return done(err, false, 'Unknown error...');
+        });
+          }
+        });
+      }
+    ));
+
+    passport.use('basic', new BasicStrategy(
       function (email, password, done) {
-        console.log("### email and pass", email, password);
+        console.log("### 'basic' authentication", email, password);
         // find a user whose email is the same as the forms email
         // we are checking to see if the user trying to login already exists
-        User.findOne({ 'email' :  email }).then(function (user) {
-            console.log(user, user.get({ plain: true }));
+        User.findOne({ where: { 'email': email } }).then(function (user) {
             // if no user is found, return the message
             if (!user) {
                 console.log("No user found");
@@ -138,8 +169,10 @@ module.exports = function (passport, User) {
                 return done(null, false, 'Oops! Wrong password.');
             }
 
+            console.log("User obj: ", user.get({ plain: true }));
             console.log("its done then...");
             // all is well, return successful user
+
             return done(null, user);
 
         }).catch(function(err) {
@@ -148,6 +181,7 @@ module.exports = function (passport, User) {
         });
       }
     ));
+
     /*
     // =========================================================================
     // FACEBOOK ================================================================
