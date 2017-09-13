@@ -108,7 +108,7 @@ app.get('/api/foodItems/:foodId', isAuthenticated, function(req, res) {
       res.send({ foodItems: response });
     }).catch(err => {
       console.error(err);
-      res.send({ "error": "something went wrong..."});
+      res.status(500).send({ "error": "something went wrong..."});
     });
 
 });
@@ -158,16 +158,19 @@ app.post('/api/foodItems', isAuthenticated, function(req, res) {
       res.send({ foodItems: result });
     }).catch(err => {
       console.error(err);
-      res.send({ "error": "something went wrong..." });
+      res.status(500).send({ "error": "something went wrong..." });
     });
 });
 
 app.get('/api/foodItems', isAuthenticated, function(req, res) {
-    Food.findAll({ where: { userEmail: req.user.get("email") } }).then(response => {
+    Food.findAll({
+      where: { userEmail: req.user.get("email") },
+      attributes: { exclude: ['userEmail' ] }
+    }).then(response => {
       console.log(response);
       res.send({ foodItems: response });
     }).catch(err => {
-      res.send({ "error": "something went wrong..."});
+      res.status(500).send({ "error": "something went wrong..."});
     });
 });
 
