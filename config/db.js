@@ -1,6 +1,6 @@
 const Sequelize = require('sequelize');
 
-let sequelize = new Sequelize('postgres://cravelistserver:123poiasd098@localhost:5432/cravelistdev', {
+let sequelize = new Sequelize(process.env.DATABASE_URL, {
   dialect: 'postgres',
   dialectOptions: {
     ssl: false
