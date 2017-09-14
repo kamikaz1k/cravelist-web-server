@@ -8,13 +8,7 @@ const ejs = require('ejs');
 const Sequelize = require('sequelize');
 const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET;
-const sequelize = new Sequelize(process.env.DATABASE_URL, {
-  dialect: 'postgres',
-  dialectOptions: {
-    ssl: true
-  },
-  logging: true
-});
+const sequelize = require('./config/db.js');
 
 function Log() {
     console.log("### DEBUG \n\n", arguments, "\n\n### DEBUG");
@@ -35,8 +29,6 @@ require('./config/passport')(passport, User);
 app.use(passport.initialize());
 
 const isAuthenticated = passport.authenticate(['local-login', 'basic','jwt-bearer'], { session : false });
-
-var router = express.Router();
 
 app.post('/api/token', isAuthenticated, (req, res) => {
   // If it has a user -- create and send token
@@ -63,107 +55,87 @@ sequelize
     console.error('Unable to connect to the database:', err);
   });
 
-const db = {
-    index: 3,
-    food: [
-        {
-            id: "1",
-                name: "There's a name",
-                location: "And its location",
-                eaten: false,
-                createdAt: new Date(),
-                modifiedAt: new Date()
-        },
-        {
-            id: "2",
-                name: "TBiryani",
-                location: "And its location",
-                eaten: false,
-                createdAt: new Date(),
-                modifiedAt: new Date()
-        },
-        {
-            id: "3",
-                name: "Thai Rice",
-                location: "And its location",
-                eaten: false,
-                createdAt: new Date(),
-                modifiedAt: new Date()
-        }
-    ]
-};
 
-function FoodItem(options) {
-    return {
-        id: options.id,
-        name: options.name,
-        location: options.location,
-        eaten: options.eaten,
-        createdAt: options.createdAt,
-        modifiedAt: options.modifiedAt
-    };
-}
-
-app.set('port',5000);// (process.env.PORT || 3000));
-
-// app.get('/', function(request, response) {
-//   // response.send();
-//   // response.sendFile(path.join(__dirname + '/app/index.html'));
-// });
+app.set('port', process.env.PORT || 5000);
 
 app.get('/', (req, res) => { res.send("Welcome to CraveList Web Server") });
 
-app.get('/api/foodItems/:foodId', isAuthenticated, function(request, response) {
-    let foodId = request.params.foodId;
+app.get('/api/foodItems/:foodId', isAuthenticated, function(req, res) {
+    let foodId = req.params.foodId;
 
-    if (foodId) {
-
-        let query = db.food.find((v) => v.id == foodId);
-
-        if (query) {
-            response.send({ foodItems: query });
-        } else {
-            response.send("no ID provided");
-        }
-
-    } else {
-        response.send("no ID provided");
+    if (!foodId) {
+      return res.send({ "error": "no ID provided" });
     }
+
+    Food.find({ where: { id: foodId }, attributes: { exclude: ['userEmail' ]} }).then(response => {
+      console.log(response);
+      res.send({ foodItems: response });
+    }).catch(err => {
+      console.error(err);
+      res.status(500).send({ "error": "something went wrong..."});
+    });
+
 });
 
-app.put('/api/foodItems/:foodId', isAuthenticated, function(request, response) {
-    let foodItem = request.body.foodItem,
-        foodId = request.params.foodId;
+app.put('/api/foodItems/:foodId', isAuthenticated, function(req, res) {
+    let foodItem = req.body.foodItem,
+        foodId = req.params.foodId;
 
-    if (foodItem) {
-
-        let query = db.food.find((v) => v.id == foodId);
-
-        if (query) {
-            Object.assign(query, foodItem);
-            response.send({ foodItems: query });
-        } else {
-            response.send("ID provided unmatched");
-        }
-
-    } else {
-        response.send("no foodItem data provided");
+    if (!foodId) {
+      return res.send({ "error": "no ID provided" });
     }
+
+    Food.find({ where: { id: foodId, userEmail: req.user.get("email") }, attributes: { exclude: ['userEmail' ]} }).then(response => {
+      console.log("### After Query: ", response);
+      // res.send({ foodItems: response });
+      return response.update({
+        name: foodItem.name,
+        location: foodItem.location,
+        eaten: foodItem.eaten,
+        notes: foodItem.notes,
+      });
+    }).then(result => {
+      console.log("result", result, result.get({ plain: true }));
+      result = result.get({ plain: true });
+      delete result.userEmail;
+      res.send({ foodItems: result });
+    })
+    .catch(err => {
+      console.error(err);
+      res.status(500).send({ "error": "something went wrong..."});
+    });
 });
 
 app.post('/api/foodItems', isAuthenticated, function(req, res) {
     console.log("data: ", req.body);
-    let foodEntry = FoodItem(req.body.foodItem);
-    foodEntry.id = ++db.index;
-    db.food.push(foodEntry);
-    res.send({ foodItems: foodEntry });
+    let foodEntry = req.body.foodItem;
+    Food.create({
+      name: foodEntry.name,
+      location: foodEntry.location,
+      eaten: foodEntry.eaten,
+      notes: foodEntry.notes,
+      userEmail: req.user.get("email")
+    }).then(result => {
+      console.log("result", result, result.get({ plain: true }));
+      result = result.get({ plain: true });
+      delete result.userEmail;
+      res.send({ foodItems: result });
+    }).catch(err => {
+      console.error(err);
+      res.status(500).send({ "error": "something went wrong..." });
+    });
 });
 
-app.get('/api/foodItems', isAuthenticated, function(request, response) {
-    response.set({
-        "Content-Type": "application/json"
-    })
-    response.send({ foodItems: db.food });
+app.get('/api/foodItems', isAuthenticated, function(req, res) {
+    Food.findAll({
+      where: { userEmail: req.user.get("email") },
+      attributes: { exclude: ['userEmail' ] }
+    }).then(response => {
+      console.log(response);
+      res.send({ foodItems: response });
+    }).catch(err => {
+      res.status(500).send({ "error": "something went wrong..."});
+    });
 });
 
 app.post('/push', function(request, response) {
@@ -232,42 +204,10 @@ app.get('/api/amiloggedin', function (req, res, next) {
     })(req, res, next)
 });
 
-// app.post('/api/login', function (req, res, next) {
-//     passport.authenticate('basic', function (err, user, info) {
-//         // console.log("### req", req);
-//         // console.log("### res", res);
-//         console.log("### err", err);
-//         console.log("### user", user);
-//         console.log("### info", info);
-
-//         if (!user) {
-//             res.send({ 'error': info });
-//         } else {
-//             res.send({ 'user': user });
-//         }
-//     })(req, res, next)
-// });
-
 // process the signup form
 app.post('/api/signup', passport.authenticate('local-signup'), function (req, res) {
     console.log(req,res);
 });
-
-app.post('/api/logout', function (req, res) {
-    req.logout();
-    res.redirect('/login');
-});
-
-// route middleware to make sure a user is logged in
-function isLoggedIn(req, res, next) {
-
-    // if user is authenticated in the session, carry on
-    if (req.isAuthenticated())
-        return next();
-
-    // if they aren't redirect them to the home page
-    res.redirect('/login');
-}
 
 /*
 function isAuthenticated(req, res, next) {
