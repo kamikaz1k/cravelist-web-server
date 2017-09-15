@@ -22,7 +22,8 @@ app.use(bodyParser.urlencoded({
 }));
 
 const User = require('./models/user')(sequelize);
-const Food = require('./models/food')(sequelize, User);
+const Location = require('./models/location')(sequelize);
+const Food = require('./models/food')(sequelize, User, Location);
 
 const passport = require('passport');
 require('./config/passport')(passport, User);
@@ -44,6 +45,11 @@ app.post('/api/token', isAuthenticated, (req, res) => {
 sequelize
   .sync()
   // .authenticate()
+  .then(v => User.findOrCreate({
+      where: { email: 'kaiser.dandangi@gmail.com' },
+      defaults: { password: User.generateHash('1234567890') }
+    })
+  )
   .then(() => {
     console.log('Connection has been established successfully.');
     // console.log(User, User.findById("1"));
@@ -108,17 +114,53 @@ app.put('/api/foodItems/:foodId', isAuthenticated, function(req, res) {
 
 app.post('/api/foodItems', isAuthenticated, function(req, res) {
     console.log("data: ", req.body);
-    let foodEntry = req.body.foodItem;
-    Food.create({
+    console.log("location: ", req.body.foodItem.location);
+    let foodEntry = req.body.foodItem,
+      coordinates = foodEntry.location.coordinates;
+
+    if (coordinates) {
+      foodEntry.location.coordinates = {
+        type: 'Point',
+        coordinates: coordinates
+      }
+    }
+
+    let options = {
       name: foodEntry.name,
       location: foodEntry.location,
       eaten: foodEntry.eaten,
       notes: foodEntry.notes,
       userEmail: req.user.get("email")
+    };
+
+    let include = {};
+
+    // Search for Location first by placeId
+    Location.findOrCreate({
+      where: { placeId: foodEntry.location.placeId },
+      defaults: foodEntry.location
+    }).then(results => {
+
+      console.log("location", results[0]);
+      // Had to do this instead of nested insert
+      // to accomodate the unique constraint
+      return Food.create({
+        name: foodEntry.name,
+        // location: foodEntry.location,
+        locationId: results[0].get("id"),
+        eaten: foodEntry.eaten,
+        notes: foodEntry.notes,
+        userEmail: req.user.get("email")
+      });
+    }).then(result => {
+      return result.reload({
+        include: [Location]
+      });
     }).then(result => {
       console.log("result", result, result.get({ plain: true }));
       result = result.get({ plain: true });
       delete result.userEmail;
+      delete result.locationId;
       res.send({ foodItems: result });
     }).catch(err => {
       console.error(err);
@@ -129,7 +171,10 @@ app.post('/api/foodItems', isAuthenticated, function(req, res) {
 app.get('/api/foodItems', isAuthenticated, function(req, res) {
     Food.findAll({
       where: { userEmail: req.user.get("email") },
-      attributes: { exclude: ['userEmail' ] }
+      attributes: { exclude: ['userEmail', 'locationId'] },
+      include: [{
+        model: Location
+      }]
     }).then(response => {
       console.log(response);
       res.send({ foodItems: response });
