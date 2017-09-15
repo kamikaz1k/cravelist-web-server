@@ -1,16 +1,16 @@
 const bcrypt = require('bcrypt-nodejs');
 const Sequelize = require('sequelize');
 
-module.exports = function(sequelize, User) {
+module.exports = function(sequelize, User, Location) {
   const Food = sequelize.define('food', {
     name: {
       type: Sequelize.STRING,
       allowNull: false
     },
-    location: {
-      type: Sequelize.STRING,
-      allowNull: false
-    },
+    // location: {
+    //   type: Sequelize.STRING,
+    //   allowNull: false
+    // },
     eaten: {
       type: Sequelize.BOOLEAN,
       allowNull: false,
@@ -22,7 +22,8 @@ module.exports = function(sequelize, User) {
     }
   });
 
-  Food.belongsTo(User);
+  Food.User = Food.belongsTo(User);
+  Food.Location = Food.belongsTo(Location);
 
   return Food;
 
