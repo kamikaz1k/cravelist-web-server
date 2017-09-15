@@ -133,12 +133,29 @@ app.post('/api/foodItems', isAuthenticated, function(req, res) {
       userEmail: req.user.get("email")
     };
 
-    console.log("options ", options, Food.name, Location.name, Food.Location);
+    let include = {};
 
-    Food.create(options, {
-      include: [{
-        association: Food.Location
-      }]
+    // Search for Location first by placeId
+    Location.findOrCreate({
+      where: { placeId: foodEntry.location.placeId },
+      defaults: foodEntry.location
+    }).then(results => {
+
+      console.log("location", results[0]);
+      // Had to do this instead of nested insert
+      // to accomodate the unique constraint
+      return Food.create({
+        name: foodEntry.name,
+        // location: foodEntry.location,
+        locationId: results[0].get("id"),
+        eaten: foodEntry.eaten,
+        notes: foodEntry.notes,
+        userEmail: req.user.get("email")
+      });
+    }).then(result => {
+      return result.reload({
+        include: [Location]
+      });
     }).then(result => {
       console.log("result", result, result.get({ plain: true }));
       result = result.get({ plain: true });

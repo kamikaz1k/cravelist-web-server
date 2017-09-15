@@ -13,6 +13,7 @@ module.exports = function(sequelize) {
     placeId: {
       type: Sequelize.STRING,
       allowNull: true,
+      unique: true
     },
     googleMapsURL: {
       type: Sequelize.STRING,
