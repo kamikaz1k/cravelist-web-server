@@ -10,6 +10,9 @@ const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET;
 const sequelize = require('./config/db.js');
 
+const TOKEN_JWT_EXPIRY = 60 * 60; // 1 hour
+const REFRESH_TOKEN_EXPIRY = 60 * 60 * 24 * 30; // 30 days
+
 function Log() {
     console.log("### DEBUG \n\n", arguments, "\n\n### DEBUG");
 }
@@ -29,17 +32,52 @@ const passport = require('passport');
 require('./config/passport')(passport, User);
 app.use(passport.initialize());
 
-const isAuthenticated = passport.authenticate(['local-login', 'basic','jwt-bearer'], { session : false });
+// const isAuthenticated = passport.authenticate(['local-login', /*'basic',*/'jwt-bearer'], { session : false });
+const isAuthenticated =  function(req, res, next) {
+  passport.authenticate(['local-login', 'jwt-bearer'], { session : false }, function(err, user, info) {
+    if (err) {
+      return res.status(401).send({ 'error': err });
+    }
+    req.user = user;
+    next();
+  })(req, res, next);
+}
+const canGetToken = function(req, res, next) {
+  passport.authenticate(['local-login', 'refresh-token'], { session : false }, function(err, user, info) {
+    if (err) {
+      return res.status(401).send({ 'error': err });
+    }
+    req.user = user;
+    next();
+  })(req, res, next);
+}
 
-app.post('/api/token', isAuthenticated, (req, res) => {
+app.post('/api/token', canGetToken, (req, res) => {
   // If it has a user -- create and send token
-  if (req.user) {
-    var expiresIn = 60 * 60; // 1 hour
-    var token = jwt.sign({ data: req.user.get("email") }, JWT_SECRET, { expiresIn: expiresIn });
-    res.status(200).send({ "access_token": token, "expires_in": expiresIn });
-  } else {
-    res.status(401).send({ "error": "Unauthorized" });
+  if (!req.user) {
+    return res.status(401).send({ "error": "Unauthorized" });
   }
+  var refresh_token;
+  var token = jwt.sign({
+    data: req.user.get("email")
+  }, JWT_SECRET, {
+    expiresIn: TOKEN_JWT_EXPIRY
+  });
+
+  if (req.body.grant_type) {
+    refresh_token = jwt.sign({
+      data: req.user.get("email")
+    }, JWT_SECRET, {
+      expiresIn: REFRESH_TOKEN_EXPIRY
+    });
+  }
+
+  res.status(200).send({
+    "access_token": token,
+    "expires_in": expiresIn,
+    "refresh_token": refresh_token // undefined is deleted attr
+  });
+
 });
 
 sequelize
@@ -52,7 +90,6 @@ sequelize
   )
   .then(() => {
     console.log('Connection has been established successfully.');
-    // console.log(User, User.findById("1"));
     app.listen(app.get('port'), function() {
       console.log('### Node app is running on port', app.get('port'));
     });
@@ -176,7 +213,7 @@ app.get('/api/foodItems', isAuthenticated, function(req, res) {
         model: Location
       }]
     }).then(response => {
-      console.log(response);
+      // console.log(response);
       res.send({ foodItems: response });
     }).catch(err => {
       res.status(500).send({ "error": "something went wrong..."});
@@ -242,16 +279,21 @@ app.get('/api/amiloggedin', function (req, res, next) {
         console.log("### info", info);
 
         if (!user) {
-            res.send({ 'error': "no" });
+            res.send({ 'msg': "no" });
         } else {
-            res.send({ 'success': user.email });
+            res.send({ 'msg': `yes: ${user.email}` });
         }
     })(req, res, next)
 });
 
 // process the signup form
-app.post('/api/signup', passport.authenticate('local-signup'), function (req, res) {
-    console.log(req,res);
+app.post('/api/signup', function(req, res, next) {
+  passport.authenticate('local-signup', { session: false }, function(err, user, info) {
+    if (err) {
+      return res.status(401).send(info || { "error": err });
+    }
+    res.send({ success: user.email });
+  })(req, res, next);
 });
 
 /*
