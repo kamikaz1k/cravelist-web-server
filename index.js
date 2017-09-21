@@ -74,7 +74,7 @@ app.post('/api/token', canGetToken, (req, res) => {
 
   res.status(200).send({
     "access_token": token,
-    "expires_in": expiresIn,
+    "expires_in": TOKEN_JWT_EXPIRY,
     "refresh_token": refresh_token // undefined is deleted attr
   });
 
@@ -110,7 +110,13 @@ app.get('/api/foodItems/:foodId', isAuthenticated, function(req, res) {
       return res.send({ "error": "no ID provided" });
     }
 
-    Food.find({ where: { id: foodId }, attributes: { exclude: ['userEmail' ]} }).then(response => {
+    Food.find({
+      where: { id: foodId },
+      attributes: { exclude: ['userEmail' ]},
+      include: [{
+        model: Location
+      }]
+    }).then(response => {
       console.log(response);
       res.send({ foodItems: response });
     }).catch(err => {
@@ -128,17 +134,46 @@ app.put('/api/foodItems/:foodId', isAuthenticated, function(req, res) {
       return res.send({ "error": "no ID provided" });
     }
 
-    Food.find({ where: { id: foodId, userEmail: req.user.get("email") }, attributes: { exclude: ['userEmail' ]} }).then(response => {
-      console.log("### After Query: ", response);
-      // res.send({ foodItems: response });
-      return response.update({
+    let options = {
+      name: foodItem.name,
+      location: foodItem.location,
+      eaten: foodItem.eaten,
+      notes: foodItem.notes,
+      userEmail: req.user.get("email")
+    };
+
+    let include = {};
+
+    // Search for Location first by placeId
+    Location.findOrCreate({
+      where: { placeId: foodItem.location.placeId },
+      defaults: foodItem.location
+    }).then(results => {
+
+      console.log("location", results[0]);
+      // Had to do this instead of nested insert
+      // to accomodate the unique constraint
+      return Food.update({
         name: foodItem.name,
-        location: foodItem.location,
+        locationId: results[0].get("id"),
         eaten: foodItem.eaten,
         notes: foodItem.notes,
+        userEmail: req.user.get("email")
+      }, {
+        where: {
+          id: foodId
+        }
       });
     }).then(result => {
-      console.log("result", result, result.get({ plain: true }));
+      return Food.find({
+        where: { id: foodId },
+        attributes: { exclude: ['userEmail' ]},
+        include: [{
+          model: Location
+        }]
+      });
+    }).then(result => {
+      console.log("result", result);
       result = result.get({ plain: true });
       delete result.userEmail;
       res.send({ foodItems: result });
