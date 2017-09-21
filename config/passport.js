@@ -23,7 +23,7 @@ module.exports = function (passport, User) {
 
     // used to serialize the user for the session
     passport.serializeUser(function (user, done) {
-        done(null, user.id);
+        done(null, user.email);
     });
 
     // used to deserialize the user
@@ -41,7 +41,7 @@ module.exports = function (passport, User) {
 
     passport.use('local-signup', new LocalStrategy({
         // by default, local strategy uses username and password, we will override with email
-        usernameField : 'email',
+        usernameField : 'username',
         passwordField : 'password',
         passReqToCallback : true // allows us to pass back the entire request to the callback
     },
@@ -58,7 +58,7 @@ module.exports = function (passport, User) {
         User.findById(email).then(function (user) {
             // check to see if theres already a user with that email
             if (user) {
-                return done(null, false, { 'error': 'That email is already taken.' });
+                return done('That email is already taken.', false, { 'error': 'That email is already taken.' });
             } else {
 
                 // if there is no user with that email
@@ -123,6 +123,44 @@ module.exports = function (passport, User) {
 
     }));
 
+
+    passport.use('refresh-token', new LocalStrategy({
+        // by default, local strategy uses username and password, we will override with email
+        usernameField : 'grant_type',
+        passwordField : 'refresh_token',
+        passReqToCallback : true // allows us to pass back the entire request to the callback
+    },
+    function (req, grant_type, refresh_token, done) { // callback with grant_type and refresh_token from our form
+        console.log("### grant_type and refresh_token", grant_type, refresh_token);
+        if (grant_type !== 'refresh_token') {
+            return done("grant_type invalid", grant_type);
+        }
+
+        jwt.verify(refresh_token, JWT_SECRET, {ignoreExpiration:false}, function (err, decoded) {
+          if (err) {
+            return done(err, false);
+          }
+          console.log("decoded", decoded);
+          User.findOne({ where: { 'email': decoded.data } }).then(function (user) {
+              console.log("User obj: ", user.get({ plain: true }));
+              // TODO with fake token error
+              // if no user is found, return the message
+              if (!user) {
+                  console.log("No user found");
+                  return done(null, false, 'No user found.');
+              }
+
+              return done(null, user);
+
+          }).catch(function(err) {
+              console.log("you gone dun goofed");
+              return done(err, false, 'Unknown error...');
+          });
+
+        })
+
+    }));
+
     passport.use('jwt-bearer', new BearerStrategy(
       function(accessToken, done) {
         console.log("### 'jwt-bearer' authentication", accessToken);
@@ -144,9 +182,9 @@ module.exports = function (passport, User) {
                 return done(null, user);
 
             }).catch(function(err) {
-            console.log("you gone dun goofed");
-            return done(err, false, 'Unknown error...');
-        });
+                console.log("you gone dun goofed");
+                return done(err, false, 'Unknown error...');
+            });
           }
         });
       }
